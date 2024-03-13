@@ -4,7 +4,6 @@ import logging
 import socket
 import requests
 import os
-from typing import Optional
 from common import make_response, AbstractProxyServer, HTTPError
 
 

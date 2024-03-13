@@ -1,8 +1,8 @@
 import click
 import logging
 import socket
-import requests
-from common import make_response, AbstractProxyServer, HTTPError
+from common import AbstractProxyServer, HTTPError
+
 
 class NoCacheProxyServer(AbstractProxyServer):
     def __init__(self, port: int):
@@ -16,13 +16,13 @@ class NoCacheProxyServer(AbstractProxyServer):
                 "Unsupported method {}, only GET and POST are supported".format(method)
             )
         logging.info("Recieved a {} request for {}".format(method, url))
-        response_bytes = self.make_external_request(method, url, headers, body)
+        response = self.make_external_request(method, url, headers, body)
+        response_bytes = AbstractProxyServer.fix_external_response(response)
         logging.info("Sending the response back")
         connection.sendall(response_bytes)
         logging.info("Successfully sent the response back")
         connection.shutdown(1)
         connection.close()
-
 
 
 @click.command()
