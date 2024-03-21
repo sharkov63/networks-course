@@ -3,6 +3,7 @@ import ssl
 import socket
 import logging
 import base64
+from typing import Optional
 
 SMTP_SERVER = 'smtp.gmail.com'
 SMTP_SERVER_PORT = 465
@@ -10,6 +11,7 @@ SMTP_SERVER_PORT = 465
 SMTP_SERVICE_READY = 220
 SMTP_SERVICE_OK = 250
 SMTP_SERVICE_START_MAIL_INPUT = 354
+
 
 class SocketSmtpClient:
     def __init__(self, login, password):
@@ -26,8 +28,11 @@ class SocketSmtpClient:
         logging.info("Authentication successful!")
         return self
 
-    def sendmail(self, to: str, data: str):
-        self._write(f"MAIL FROM:<{self._login}>\r\n")
+    def sendmail(self, to: str, datastream, mime: bool, content_type: Optional[str]):
+        if mime and "8BITMIME" not in self._ehlo_response:
+            raise RuntimeError("8BITMIME is not supported by server")
+        body_mail_param = " BODY=8BITMIME" if mime else ""
+        self._write(f"MAIL FROM:<{self._login}>{body_mail_param}\r\n")
         if not self._readline().startswith(f"{SMTP_SERVICE_OK}"):
             raise RuntimeError()
         self._write(f"RCPT TO:<{to}>\r\n")
@@ -36,11 +41,17 @@ class SocketSmtpClient:
         self._write("DATA\r\n")
         if not self._readline().startswith(f"{SMTP_SERVICE_START_MAIL_INPUT}"):
             raise RuntimeError()
-        self._write(data)
+        if not mime:
+            self._writebytes(datastream.read())
+        else:
+            self._write("MIME-Version: 1.0\r\n")
+            self._write(f"Content-Type: {content_type}\r\n")
+            self._write("Content-Transfer-Encoding: base64\r\n")
+            self._write("\r\n")
+            self._writebytes(base64.b64encode(datastream.read()))
         self._write("\r\n.\r\n")
         if not self._readline().startswith(f"{SMTP_SERVICE_OK}"):
             raise RuntimeError()
-
 
     def __exit__(self, *_):
         self._ssl_sock.close()
@@ -91,7 +102,8 @@ class SocketSmtpClient:
                 "PLAIN auth method ain't supported by the SMTP service")
         initial_response = base64.b64encode(
             b'\x00' + self._login.encode('ascii') + b'\x00' + self._password.encode('ascii'))
-        self._writebytes("AUTH PLAIN ".encode('ascii') + initial_response + "\r\n".encode('ascii'))
+        self._writebytes("AUTH PLAIN ".encode('ascii') +
+                         initial_response + "\r\n".encode('ascii'))
         auth_reply = self._readline()
         if not auth_reply.startswith("235 2.7.0"):
             raise RuntimeError("Authentication failed :(")
@@ -107,7 +119,6 @@ class SocketSmtpClient:
         self._sock_file.flush()
 
     def _writebytes(self, bytes: bytes):
-        logging.debug(bytes.decode())
         self._sock_file.write(bytes)
         self._sock_file.flush()
 
@@ -116,17 +127,25 @@ class SocketSmtpClient:
 @click.option("--login", required=True, type=str, help='Email address of the sender, must be in gmail.com domain. Same as login to your Google account.')
 @click.option("--password", required=True, type=str, help='App password for your Google account. For more information, see https://support.google.com/accounts/answer/185833')
 @click.option("--to", required=True, type=str, help='Recipient address')
-@click.argument('input', type=click.File('r'), default='-')
+@click.option("--mime", is_flag=True, default=False)
+@click.option("--content-type", type=str)
+@click.argument('input', type=click.File('rb'), default='-')
 def main(
-    login,
-    password,
-    to,
-    input
+    login: str,
+    password: str,
+    to: str,
+    input,
+    mime: bool,
+    content_type: Optional[str],
 ):
+    if mime and content_type is None:
+        logging.error("--content-type is required with --mime")
+        exit(1)
+    if not mime and content_type is not None:
+        logging.warn("--mime is not set, so --content-type will be ignored")
     logging.basicConfig(level=logging.DEBUG)
     with SocketSmtpClient(login, password) as client:
-        data = input.read()
-        client.sendmail(to, data)
+        client.sendmail(to, input, mime, content_type)
 
 
 if __name__ == "__main__":
