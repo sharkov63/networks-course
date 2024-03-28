@@ -74,7 +74,28 @@
 Бонус: Не используйте готовые библиотеки для работы с FTP (например, ftplib для Python), а реализуйте решение на сокетах **(+3 балла)**.
 
 #### Демонстрация работы
-todo
+```
+$ python3 src/ftp_client.py --help   
+Usage: ftp_client.py [OPTIONS] COMMAND [ARGS]...
+
+Options:
+  --host TEXT      [required]
+  --user TEXT      [required]
+  --password TEXT  [required]
+  --help           Show this message and exit.
+
+Commands:
+  download
+  ls
+  upload
+```
+* `ls <DIR>` - вывести файлы/папки в директории. По умолчанию `<DIR>` - корень.
+    ![](./images/FtpClient_1.png)
+* `upload <FILE> <HOST_PATH>` - загрузить файл.
+    ![](./images/FtpClient_2.png)
+* `download <HOST_PATH> <FILE>` - скачать файл.
+    ![](./images/FtpClient_3.png)
+    ![](./images/FtpClient_4.png)
 
 ### GUI FTP клиент (4 балла)
 Реализуйте приложение FTP клиента с графическим интерфейсом. НЕ используйте C#.
